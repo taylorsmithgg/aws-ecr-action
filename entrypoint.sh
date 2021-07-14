@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -ex
 
 INPUT_PATH="${INPUT_PATH:-.}"
 INPUT_DOCKERFILE="${INPUT_DOCKERFILE:-Dockerfile}"
@@ -23,8 +23,8 @@ function main() {
   assume_role
   login
   run_pre_build_script $INPUT_PREBUILD_SCRIPT
-  docker_build $INPUT_TAGS $ACCOUNT_URL
   create_ecr_repo $INPUT_CREATE_REPO
+  docker_build $INPUT_TAGS $ACCOUNT_URL
   set_ecr_repo_policy $INPUT_SET_REPO_POLICY
   put_image_scanning_configuration $INPUT_IMAGE_SCANNING_CONFIGURATION
   docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL
