@@ -1,16 +1,10 @@
-name: AWS ECR DEBUG
-author: Lee Sun-Hyoup <kciter@naver.com>, Pablo Castillo <pablo@castillo.is>
+name: AWS ECR
+author: Taylor Smith <taylor.smithgg@gmail.com>
 branding:
   icon: upload-cloud
   color: orange
 description: Create Docker images and push into a ECR repository.
 inputs:
-  access_key_id:
-    description: The AWS access key id
-    required: true
-  secret_access_key:
-    description: The AWS secret access key
-    required: true
   account_id:
     description: AWS Account ID
     required: true
