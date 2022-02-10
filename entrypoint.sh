@@ -39,7 +39,7 @@ function main() {
   if test -f "$IS_GRADLE_PROJECT"; then
     echo "Gradle project detected, attempting to run jib"
     gradle_jib
-    
+  fi
 }
 
 function sanitize() {
