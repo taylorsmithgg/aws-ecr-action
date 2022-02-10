@@ -9,6 +9,9 @@ INPUT_SET_REPO_POLICY="${INPUT_SET_REPO_POLICY:-false}"
 INPUT_REPO_POLICY_FILE="${INPUT_REPO_POLICY_FILE:-repo-policy.json}"
 INPUT_IMAGE_SCANNING_CONFIGURATION="${INPUT_IMAGE_SCANNING_CONFIGURATION:-false}"
 
+DOCKERFILE=./Dockerfile
+IS_GRADLE_PROJECT=./build.gradle
+
 function main() {
 #   sanitize "${INPUT_ACCESS_KEY_ID}" "access_key_id"
 #   sanitize "${INPUT_SECRET_ACCESS_KEY}" "secret_access_key"
@@ -27,7 +30,16 @@ function main() {
   docker_build $INPUT_TAGS $ACCOUNT_URL
   set_ecr_repo_policy $INPUT_SET_REPO_POLICY
   put_image_scanning_configuration $INPUT_IMAGE_SCANNING_CONFIGURATION
-  docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL
+  
+  if test -f "$DOCKERFILE"; then
+    echo "Found Dockerfile, building & pushing image"
+    docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL
+  fi
+  
+  if test -f "$IS_GRADLE_PROJECT"; then
+    echo "Gradle project detected, attempting to run jib"
+    gradle_jib
+    
 }
 
 function sanitize() {
@@ -148,6 +160,10 @@ function docker_push_to_ecr() {
     echo ::set-output name=image::$2/$INPUT_REPO:$tag
   done
   echo "== FINISHED PUSH TO ECR"
+}
+
+function gradle_jib() {
+  ./gradlew jib
 }
 
 main
