@@ -26,6 +26,12 @@ function main() {
   login
   run_pre_build_script $INPUT_PREBUILD_SCRIPT
   create_ecr_repo $INPUT_CREATE_REPO
+
+  # shopt -s dotglob # include hidden dirs
+  find * -prune -type d | while IFS= read -r d; do 
+      create_ecr_repo ${d}
+  done
+
   set_ecr_repo_policy $INPUT_SET_REPO_POLICY
   put_image_scanning_configuration $INPUT_IMAGE_SCANNING_CONFIGURATION
   
