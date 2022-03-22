@@ -25,11 +25,11 @@ function main() {
   assume_role
   login
   run_pre_build_script $INPUT_PREBUILD_SCRIPT
-  create_ecr_repo $INPUT_CREATE_REPO
+  create_ecr_repo ${INPUT_REPO}
 
   # shopt -s dotglob # include hidden dirs
   find * -prune -type d | while IFS= read -r d; do 
-      create_ecr_repo ${d}
+      create_ecr_repo "${INPUT_REPO}-${d}"
   done
 
   set_ecr_repo_policy $INPUT_SET_REPO_POLICY
@@ -77,26 +77,24 @@ function assume_role() {
 }
 
 function create_ecr_repo() {
-  if [ "${1}" = true ]; then
-    echo "== START CREATE REPO"
-    echo "== CHECK REPO EXISTS"
-    set +e
-    output=$(aws ecr describe-repositories --region $AWS_DEFAULT_REGION --repository-names $INPUT_REPO 2>&1)
-    exit_code=$?
-    if [ $exit_code -ne 0 ]; then
-      if echo ${output} | grep -q RepositoryNotFoundException; then
-        echo "== REPO DOESN'T EXIST, CREATING.."
-        aws ecr create-repository --region $AWS_DEFAULT_REGION --repository-name $INPUT_REPO
-        echo "== FINISHED CREATE REPO"
-      else
-        >&2 echo ${output}
-        exit $exit_code
-      fi
+  echo "== START CREATE REPO"
+  echo "== CHECK REPO EXISTS"
+  set +e
+  output=$(aws ecr describe-repositories --region $AWS_DEFAULT_REGION --repository-names ${1} 2>&1)
+  exit_code=$?
+  if [ $exit_code -ne 0 ]; then
+    if echo ${output} | grep -q RepositoryNotFoundException; then
+      echo "== REPO DOESN'T EXIST, CREATING.."
+      aws ecr create-repository --region $AWS_DEFAULT_REGION --repository-name ${1}
+      echo "== FINISHED CREATE REPO"
     else
-      echo "== REPO EXISTS, SKIPPING CREATION.."
+      >&2 echo ${output}
+      exit $exit_code
     fi
-    set -e
+  else
+    echo "== REPO EXISTS, SKIPPING CREATION.."
   fi
+  set -e
 }
 
 function set_ecr_repo_policy() {
