@@ -28,8 +28,8 @@ function main() {
   create_ecr_repo ${INPUT_REPO}
 
   # shopt -s dotglob # include hidden dirs
-  find * -prune -type d | while IFS= read -r d; do 
-      create_ecr_repo "${INPUT_REPO}-${d}"
+  find * -prune -type d | while IFS= read -r d; do
+    create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
   done
 
   set_ecr_repo_policy $INPUT_SET_REPO_POLICY
