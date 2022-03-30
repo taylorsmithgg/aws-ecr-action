@@ -30,6 +30,12 @@ function main() {
   # shopt -s dotglob # include hidden dirs
   find * -prune -type d | while IFS= read -r d; do
     create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
+
+    if test -f "${d}/Dockerfile"; then
+      echo "Found ${d}/Dockerfile, building & pushing image"
+      docker_build $INPUT_TAGS $ACCOUNT_URL "${d}/Dockerfile"
+      docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
+    fi
   done
 
   set_ecr_repo_policy $INPUT_SET_REPO_POLICY
@@ -37,8 +43,8 @@ function main() {
   
   if test -f "$DOCKERFILE"; then
     echo "Found Dockerfile, building & pushing image"
-    docker_build $INPUT_TAGS $ACCOUNT_URL
-    docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL
+    docker_build $INPUT_TAGS $ACCOUNT_URL $DOCKERFILE
+    docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO
   fi
 }
 
@@ -145,7 +151,7 @@ function docker_build() {
     INPUT_EXTRA_BUILD_ARGS="$INPUT_EXTRA_BUILD_ARGS --cache-from=$INPUT_CACHE_FROM"
   fi
 
-  docker build $INPUT_EXTRA_BUILD_ARGS -f $INPUT_DOCKERFILE $docker_tag_args $INPUT_PATH
+  docker build $INPUT_EXTRA_BUILD_ARGS -f ${3} $docker_tag_args $INPUT_PATH
   echo "== FINISHED DOCKERIZE"
 }
 
@@ -154,8 +160,8 @@ function docker_push_to_ecr() {
   local TAG=$1
   local DOCKER_TAGS=$(echo "$TAG" | tr "," "\n")
   for tag in $DOCKER_TAGS; do
-    docker push $2/$INPUT_REPO:$tag
-    echo ::set-output name=image::$2/$INPUT_REPO:$tag
+    docker push $2/$3:$tag
+    echo ::set-output name=image::$2/$3:$tag
   done
   echo "== FINISHED PUSH TO ECR"
 }
