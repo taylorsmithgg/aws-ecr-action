@@ -34,8 +34,10 @@ function main() {
 
     if test -f "${d}/Dockerfile"; then
       echo "Found ${d}/Dockerfile, building & pushing image"
-      docker_build $INPUT_TAGS $ACCOUNT_URL "${d}/Dockerfile"
+      cd ${d}
+      docker_build $INPUT_TAGS $ACCOUNT_URL "Dockerfile"
       docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
+      cd ..
     fi
   done
 
