@@ -35,7 +35,7 @@ function main() {
     if test -f "${d}/Dockerfile"; then
       echo "Found ${d}/Dockerfile, building & pushing image"
       cd ${d}
-      docker_build $INPUT_TAGS $ACCOUNT_URL "Dockerfile"
+      docker_build $INPUT_TAGS $ACCOUNT_URL "Dockerfile" ${INPUT_REPO}-${d}
       docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
       cd ..
     fi
@@ -143,7 +143,7 @@ function docker_build() {
   local docker_tag_args=""
   local DOCKER_TAGS=$(echo "$TAG" | tr "," "\n")
   for tag in $DOCKER_TAGS; do
-    docker_tag_args="$docker_tag_args -t $2/$INPUT_REPO:$tag"
+    docker_tag_args="$docker_tag_args -t $2/${4}:$tag"
   done
 
   if [ -n "${INPUT_CACHE_FROM}" ]; then
