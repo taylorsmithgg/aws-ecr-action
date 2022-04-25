@@ -9,6 +9,7 @@ INPUT_CREATE_REPO="${INPUT_CREATE_REPO:-false}"
 INPUT_SET_REPO_POLICY="${INPUT_SET_REPO_POLICY:-false}"
 INPUT_REPO_POLICY_FILE="${INPUT_REPO_POLICY_FILE:-repo-policy.json}"
 INPUT_IMAGE_SCANNING_CONFIGURATION="${INPUT_IMAGE_SCANNING_CONFIGURATION:-false}"
+INPUT_REPO = $(echo $INPUT_REPO | tr '[:upper:]' '[:lower:]')
 
 DOCKERFILE=./Dockerfile
 
@@ -26,8 +27,9 @@ function main() {
   assume_role
   login
   run_pre_build_script $INPUT_PREBUILD_SCRIPT
-  create_ecr_repo ${INPUT_REPO} | tr '[:upper:]' '[:lower:]'
-
+  
+  create_ecr_repo ${INPUT_REPO}
+  
   # shopt -s dotglob # include hidden dirs
   find * -prune -type d | while IFS= read -r d; do
     create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
