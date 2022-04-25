@@ -26,7 +26,7 @@ function main() {
   assume_role
   login
   run_pre_build_script $INPUT_PREBUILD_SCRIPT
-  create_ecr_repo ${INPUT_REPO}
+  create_ecr_repo ${INPUT_REPO} | tr '[:upper:]' '[:lower:]'
 
   # shopt -s dotglob # include hidden dirs
   find * -prune -type d | while IFS= read -r d; do
