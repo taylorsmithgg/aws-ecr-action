@@ -10,8 +10,7 @@ INPUT_SET_REPO_POLICY="${INPUT_SET_REPO_POLICY:-false}"
 INPUT_REPO_POLICY_FILE="${INPUT_REPO_POLICY_FILE:-repo-policy.json}"
 INPUT_IMAGE_SCANNING_CONFIGURATION="${INPUT_IMAGE_SCANNING_CONFIGURATION:-false}"
 INPUT_REPO=$(echo $INPUT_REPO | tr '[:upper:]' '[:lower:]')
-
-DOCKERFILE=./Dockerfile
+INPUT_SUB_MODULES="${INPUT_SUB_MODULES:-false}"
 
 function main() {
 #   sanitize "${INPUT_ACCESS_KEY_ID}" "access_key_id"
@@ -26,31 +25,45 @@ function main() {
   aws_configure
   assume_role
   login
-  run_pre_build_script $INPUT_PREBUILD_SCRIPT
-  
-  create_ecr_repo ${INPUT_REPO}
-  
-  # shopt -s dotglob # include hidden dirs
-  find * -prune -type d | while IFS= read -r d; do
-    create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
-
-    if test -f "${d}/Dockerfile"; then
-      echo "Found ${d}/Dockerfile, building & pushing image"
-      cd ${d}
-      docker_build $INPUT_TAGS $ACCOUNT_URL "Dockerfile" ${INPUT_REPO}-${d}
-      docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
-      cd ..
-    fi
-  done
 
   set_ecr_repo_policy $INPUT_SET_REPO_POLICY
   put_image_scanning_configuration $INPUT_IMAGE_SCANNING_CONFIGURATION
   
-  if test -f "$DOCKERFILE"; then
-    echo "Found Dockerfile, building & pushing image"
-    docker_build $INPUT_TAGS $ACCOUNT_URL $DOCKERFILE
+  root_docker="$(find . -type f -iname "dockerfile")"
+  if [ ! -z "$root_docker" ]; then
+    echo "Found root Dockerfile! Building & pushing image $ACCOUNT_URL/$INPUT_REPO:$INPUT_TAGS"
+    run_pre_build_script $INPUT_PREBUILD_SCRIPT
+    create_ecr_repo ${INPUT_REPO}
+    docker_build $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO $root_docker
+    run_post_build_script $INPUT_POSTBUILD_SCRIPT
     docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO
+  else
+    echo "DOCKERFILE not found in $(pwd)"
+    if [[ "$INPUT_SUB_MODULES" != "true" ]]; then
+      echo "if not using SUB_MODULES, a dockerfile in the root is required"
+      ls -l
+      exit 1
+    fi
   fi
+  
+  if [[ "$INPUT_SUB_MODULES" == "true" ]]; then
+    echo "Builing submodules..."
+    # shopt -s dotglob # include hidden dirs
+    find * -prune -type d | while IFS= read -r d; do
+      sub_docker="$(find $d -type f -iname "dockerfile")"
+      if  [ ! -z "$sub_docker" ]; then
+        echo "Found ${d}/Dockerfile, building & pushing image"
+        create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
+        cd ${d}
+        docker_build $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d} "$(find . -type f -iname "dockerfile")"
+        run_post_build_script $INPUT_POSTBUILD_SCRIPT
+        docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
+        cd ..
+      fi
+    done
+  fi
+
+
 }
 
 function sanitize() {
@@ -88,24 +101,26 @@ function assume_role() {
 }
 
 function create_ecr_repo() {
-  echo "== START CREATE REPO"
-  echo "== CHECK REPO EXISTS"
-  set +e
-  output=$(aws ecr describe-repositories --region $AWS_DEFAULT_REGION --repository-names ${1} 2>&1)
-  exit_code=$?
-  if [ $exit_code -ne 0 ]; then
-    if echo ${output} | grep -q RepositoryNotFoundException; then
-      echo "== REPO DOESN'T EXIST, CREATING.."
-      aws ecr create-repository --region $AWS_DEFAULT_REGION --repository-name ${1}
-      echo "== FINISHED CREATE REPO"
+  if [ "$INPUT_CREATE_REPO" == "true" ]; then
+    echo "== START CREATE REPO"
+    echo "== CHECK REPO EXISTS"
+    set +e
+    output=$(aws ecr describe-repositories --region $AWS_DEFAULT_REGION --repository-names ${1} 2>&1)
+    exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+      if echo ${output} | grep -q RepositoryNotFoundException; then
+        echo "== REPO DOESN'T EXIST, CREATING.."
+        aws ecr create-repository --region $AWS_DEFAULT_REGION --repository-name ${1}
+        echo "== FINISHED CREATE REPO"
+      else
+        >&2 echo ${output}
+        exit $exit_code
+      fi
     else
-      >&2 echo ${output}
-      exit $exit_code
+      echo "== REPO EXISTS, SKIPPING CREATION.."
     fi
-  else
-    echo "== REPO EXISTS, SKIPPING CREATION.."
+    set -e
   fi
-  set -e
 }
 
 function set_ecr_repo_policy() {
@@ -139,13 +154,23 @@ function run_pre_build_script() {
   fi
 }
 
+function run_post_build_script() {
+  if [ ! -z "${1}" ]; then
+    echo "== START POSTBUILD SCRIPT"
+    chmod a+x $1
+    $1
+    echo "== FINISHED POSTBUILD SCRIPT"
+  fi
+}
+
 function docker_build() {
+  # docker_build <tags> <account_url> <image_name> <dockerfile>
   echo "== START DOCKERIZE"
   local TAG=$1
   local docker_tag_args=""
-  local DOCKER_TAGS=$(echo "$TAG" | tr "," "\n")
-  for tag in $DOCKER_TAGS; do
-    docker_tag_args="$docker_tag_args -t $2/${4}:$tag"
+  IFS=',' read -ra ADDR <<< "$TAG"
+  for tag in "${ADDR[@]}"; do
+    docker_tag_args="$docker_tag_args -t $2/${3}:$tag"
   done
 
   if [ -n "${INPUT_CACHE_FROM}" ]; then
@@ -156,15 +181,16 @@ function docker_build() {
     INPUT_EXTRA_BUILD_ARGS="$INPUT_EXTRA_BUILD_ARGS --cache-from=$INPUT_CACHE_FROM"
   fi
 
-  docker build $INPUT_EXTRA_BUILD_ARGS -f ${3} $docker_tag_args $INPUT_PATH
+  docker build $INPUT_EXTRA_BUILD_ARGS -f ${4} $docker_tag_args $INPUT_PATH
   echo "== FINISHED DOCKERIZE"
 }
 
 function docker_push_to_ecr() {
+  # docker_push_to_ecr <tags> <account_url> <image_name>
   echo "== START PUSH TO ECR"
   local TAG=$1
-  local DOCKER_TAGS=$(echo "$TAG" | tr "," "\n")
-  for tag in $DOCKER_TAGS; do
+  IFS=',' read -ra ADDR <<< "$TAG"
+  for tag in "${ADDR[@]}"; do
     docker push $2/$3:$tag
     echo ::set-output name=image::$2/$3:$tag
   done
