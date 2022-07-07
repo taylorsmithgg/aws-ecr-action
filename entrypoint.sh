@@ -31,10 +31,10 @@ function main() {
   
   root_docker="$(find . -type f -iname "dockerfile")"
   if [ ! -z "$root_docker" ]; then
-    echo "Found Dockerfile, building & pushing image"
+    echo "Found root Dockerfile! Building & pushing image $ACCOUNT_URL/$INPUT_REPO:$INPUT_TAGS"
     run_pre_build_script $INPUT_PREBUILD_SCRIPT
     create_ecr_repo ${INPUT_REPO}
-    docker_build $INPUT_TAGS $ACCOUNT_URL $root_docker
+    docker_build $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO
     run_post_build_script $INPUT_POSTBUILD_SCRIPT
     docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO
   else
@@ -55,7 +55,7 @@ function main() {
         echo "Found ${d}/Dockerfile, building & pushing image"
         create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
         cd ${d}
-        docker_build $INPUT_TAGS $ACCOUNT_URL "Dockerfile" ${INPUT_REPO}-${d}
+        docker_build $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
         run_post_build_script $INPUT_POSTBUILD_SCRIPT
         docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
         cd ..
@@ -164,11 +164,12 @@ function run_post_build_script() {
 }
 
 function docker_build() {
+  # docker_build <tags> <account_url> <image_name>
   echo "== START DOCKERIZE"
   local TAG=$1
   local docker_tag_args=""
-  local DOCKER_TAGS=$(echo "$TAG" | tr "," "\n")
-  for tag in $DOCKER_TAGS; do
+  IFS=',' read -ra ADDR <<< "$TAG"
+  for tag in "${ADDR[@]}"; do
     docker_tag_args="$docker_tag_args -t $2/${4}:$tag"
   done
 
@@ -185,10 +186,11 @@ function docker_build() {
 }
 
 function docker_push_to_ecr() {
+  # docker_push_to_ecr <tags> <account_url> <image_name>
   echo "== START PUSH TO ECR"
   local TAG=$1
-  local DOCKER_TAGS=$(echo "$TAG" | tr "," "\n")
-  for tag in $DOCKER_TAGS; do
+  IFS=',' read -ra ADDR <<< "$TAG"
+  for tag in "${ADDR[@]}"; do
     docker push $2/$3:$tag
     echo ::set-output name=image::$2/$3:$tag
   done
