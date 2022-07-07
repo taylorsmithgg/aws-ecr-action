@@ -32,12 +32,12 @@ function main() {
   
   # shopt -s dotglob # include hidden dirs
   find * -prune -type d | while IFS= read -r d; do
-    create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
-
     if test -f "${d}/Dockerfile"; then
+      create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
       echo "Found ${d}/Dockerfile, building & pushing image"
       cd ${d}
       docker_build $INPUT_TAGS $ACCOUNT_URL "Dockerfile" ${INPUT_REPO}-${d}
+      run_post_build_script $INPUT_POSTBUILD_SCRIPT
       docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
       cd ..
     fi
@@ -49,6 +49,7 @@ function main() {
   if test -f "$DOCKERFILE"; then
     echo "Found Dockerfile, building & pushing image"
     docker_build $INPUT_TAGS $ACCOUNT_URL $DOCKERFILE
+    run_post_build_script $INPUT_POSTBUILD_SCRIPT
     docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO
   fi
 }
@@ -88,24 +89,26 @@ function assume_role() {
 }
 
 function create_ecr_repo() {
-  echo "== START CREATE REPO"
-  echo "== CHECK REPO EXISTS"
-  set +e
-  output=$(aws ecr describe-repositories --region $AWS_DEFAULT_REGION --repository-names ${1} 2>&1)
-  exit_code=$?
-  if [ $exit_code -ne 0 ]; then
-    if echo ${output} | grep -q RepositoryNotFoundException; then
-      echo "== REPO DOESN'T EXIST, CREATING.."
-      aws ecr create-repository --region $AWS_DEFAULT_REGION --repository-name ${1}
-      echo "== FINISHED CREATE REPO"
+  if [ "$INPUT_CREATE_REPO" == "true" ]; then
+    echo "== START CREATE REPO"
+    echo "== CHECK REPO EXISTS"
+    set +e
+    output=$(aws ecr describe-repositories --region $AWS_DEFAULT_REGION --repository-names ${1} 2>&1)
+    exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+      if echo ${output} | grep -q RepositoryNotFoundException; then
+        echo "== REPO DOESN'T EXIST, CREATING.."
+        aws ecr create-repository --region $AWS_DEFAULT_REGION --repository-name ${1}
+        echo "== FINISHED CREATE REPO"
+      else
+        >&2 echo ${output}
+        exit $exit_code
+      fi
     else
-      >&2 echo ${output}
-      exit $exit_code
+      echo "== REPO EXISTS, SKIPPING CREATION.."
     fi
-  else
-    echo "== REPO EXISTS, SKIPPING CREATION.."
+    set -e
   fi
-  set -e
 }
 
 function set_ecr_repo_policy() {
@@ -136,6 +139,15 @@ function run_pre_build_script() {
     chmod a+x $1
     $1
     echo "== FINISHED PREBUILD SCRIPT"
+  fi
+}
+
+function run_post_build_script() {
+  if [ ! -z "${1}" ]; then
+    echo "== START POSTBUILD SCRIPT"
+    chmod a+x $1
+    $1
+    echo "== FINISHED POSTBUILD SCRIPT"
   fi
 }
 
