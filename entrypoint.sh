@@ -10,6 +10,7 @@ INPUT_SET_REPO_POLICY="${INPUT_SET_REPO_POLICY:-false}"
 INPUT_REPO_POLICY_FILE="${INPUT_REPO_POLICY_FILE:-repo-policy.json}"
 INPUT_IMAGE_SCANNING_CONFIGURATION="${INPUT_IMAGE_SCANNING_CONFIGURATION:-false}"
 INPUT_REPO=$(echo $INPUT_REPO | tr '[:upper:]' '[:lower:]')
+INPUT_SUB_MODULES="${INPUT_SUB_MODULES:-false}"
 
 DOCKERFILE=./Dockerfile
 
@@ -26,31 +27,39 @@ function main() {
   aws_configure
   assume_role
   login
-  run_pre_build_script $INPUT_PREBUILD_SCRIPT
   
-  create_ecr_repo ${INPUT_REPO}
-  
-  # shopt -s dotglob # include hidden dirs
-  find * -prune -type d | while IFS= read -r d; do
-    if test -f "${d}/Dockerfile"; then
-      create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
-      echo "Found ${d}/Dockerfile, building & pushing image"
-      cd ${d}
-      docker_build $INPUT_TAGS $ACCOUNT_URL "Dockerfile" ${INPUT_REPO}-${d}
-      run_post_build_script $INPUT_POSTBUILD_SCRIPT
-      docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
-      cd ..
-    fi
-  done
+  if [[ "$INPUT_SUB_MODULES" == "true" ]]; then
+    echo "Builing submodules..."
+    # shopt -s dotglob # include hidden dirs
+    find * -prune -type d | while IFS= read -r d; do
+      if test -f "${d}/Dockerfile"; then
+        echo "Found ${d}/Dockerfile, building & pushing image"
+        create_ecr_repo "${INPUT_REPO}-${d}" | tr '[:upper:]' '[:lower:]'
+        cd ${d}
+        docker_build $INPUT_TAGS $ACCOUNT_URL "Dockerfile" ${INPUT_REPO}-${d}
+        run_post_build_script $INPUT_POSTBUILD_SCRIPT
+        docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL ${INPUT_REPO}-${d}
+        cd ..
+      fi
+    done
+  fi
 
   set_ecr_repo_policy $INPUT_SET_REPO_POLICY
   put_image_scanning_configuration $INPUT_IMAGE_SCANNING_CONFIGURATION
   
   if test -f "$DOCKERFILE"; then
     echo "Found Dockerfile, building & pushing image"
+    run_pre_build_script $INPUT_PREBUILD_SCRIPT
+    create_ecr_repo ${INPUT_REPO}
     docker_build $INPUT_TAGS $ACCOUNT_URL $DOCKERFILE
     run_post_build_script $INPUT_POSTBUILD_SCRIPT
     docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO
+  else
+    echo "DOCKERFILE not found"
+    if [[ "$INPUT_SUB_MODULES" != "true" ]]; then
+      echo "if not using SUB_MODULES, a dockerfile in the root is required"
+      exit 1
+    fi
   fi
 }
 
