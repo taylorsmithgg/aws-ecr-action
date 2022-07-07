@@ -27,6 +27,25 @@ function main() {
   aws_configure
   assume_role
   login
+
+  set_ecr_repo_policy $INPUT_SET_REPO_POLICY
+  put_image_scanning_configuration $INPUT_IMAGE_SCANNING_CONFIGURATION
+  
+  if test -f "$DOCKERFILE"; then
+    echo "Found Dockerfile, building & pushing image"
+    run_pre_build_script $INPUT_PREBUILD_SCRIPT
+    create_ecr_repo ${INPUT_REPO}
+    docker_build $INPUT_TAGS $ACCOUNT_URL $DOCKERFILE
+    run_post_build_script $INPUT_POSTBUILD_SCRIPT
+    docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO
+  else
+    echo "DOCKERFILE not found in $(pwd)"
+    if [[ "$INPUT_SUB_MODULES" != "true" ]]; then
+      echo "if not using SUB_MODULES, a dockerfile in the root is required"
+      ls -l
+      exit 1
+    fi
+  fi
   
   if [[ "$INPUT_SUB_MODULES" == "true" ]]; then
     echo "Builing submodules..."
@@ -44,23 +63,7 @@ function main() {
     done
   fi
 
-  set_ecr_repo_policy $INPUT_SET_REPO_POLICY
-  put_image_scanning_configuration $INPUT_IMAGE_SCANNING_CONFIGURATION
-  
-  if test -f "$DOCKERFILE"; then
-    echo "Found Dockerfile, building & pushing image"
-    run_pre_build_script $INPUT_PREBUILD_SCRIPT
-    create_ecr_repo ${INPUT_REPO}
-    docker_build $INPUT_TAGS $ACCOUNT_URL $DOCKERFILE
-    run_post_build_script $INPUT_POSTBUILD_SCRIPT
-    docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO
-  else
-    echo "DOCKERFILE not found"
-    if [[ "$INPUT_SUB_MODULES" != "true" ]]; then
-      echo "if not using SUB_MODULES, a dockerfile in the root is required"
-      exit 1
-    fi
-  fi
+
 }
 
 function sanitize() {
