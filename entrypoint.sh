@@ -23,7 +23,8 @@ function main() {
 
   ACCOUNT_URL="$INPUT_ACCOUNT_ID.dkr.ecr.$INPUT_REGION.amazonaws.com"
 
-  aws_configure
+  export AWS_DEFAULT_REGION=$INPUT_REGION
+
   run_pre_build_script $INPUT_PREBUILD_SCRIPT
   
   create_ecr_repo ${INPUT_REPO}
@@ -56,12 +57,6 @@ function sanitize() {
     >&2 echo "Unable to find the ${2}. Did you set with.${2}?"
     exit 1
   fi
-}
-
-function aws_configure() {
-#   export AWS_ACCESS_KEY_ID=$INPUT_ACCESS_KEY_ID
-#   export AWS_SECRET_ACCESS_KEY=$INPUT_SECRET_ACCESS_KEY
-  export AWS_DEFAULT_REGION=$INPUT_REGION
 }
 
 function create_ecr_repo() {
