@@ -11,10 +11,7 @@ RUN apk update \
   && apk add docker-credential-ecr-login -X https://dl-cdn.alpinelinux.org/alpine/edge/community/ --allow-untrusted
 
 RUN mkdir ~/.docker
-
-RUN <<EOF
-echo '{"credsStore": "ecr-login"}' >> ~/.docker/config.json
-EOF
+COPY ./config.json ~/.docker/config.json
 
 ADD entrypoint.sh /entrypoint.sh
 
