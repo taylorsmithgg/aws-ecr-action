@@ -118,7 +118,7 @@ function run_pre_build_script() {
 
 function docker_build() {
   echo "== START DOCKERIZE"
-  echo $1 >> $GITHUB_STEP_SUMMARY
+  echo "**Tags:** ${1}" >> $GITHUB_STEP_SUMMARY
   local TAG=$1
   local docker_tag_args=""
   local DOCKER_TAGS=$(echo "$TAG" | tr "," "\n")
