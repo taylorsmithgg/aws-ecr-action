@@ -46,7 +46,7 @@ function main() {
   
   if test -f "$DOCKERFILE"; then
     echo "Found Dockerfile, building & pushing image"
-    docker_build $INPUT_TAGS $ACCOUNT_URL $DOCKERFILE
+    docker_build $INPUT_TAGS $ACCOUNT_URL $DOCKERFILE ${INPUT_REPO}
     docker_push_to_ecr $INPUT_TAGS $ACCOUNT_URL $INPUT_REPO
   fi
 }
