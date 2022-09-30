@@ -16,6 +16,8 @@ DOCKERFILE=./Dockerfile
 function main() {
 #   sanitize "${INPUT_ACCESS_KEY_ID}" "access_key_id"
 #   sanitize "${INPUT_SECRET_ACCESS_KEY}" "secret_access_key"
+  export AWS_DEFAULT_REGION=$INPUT_REGION
+
   sanitize "${INPUT_REGION}" "region"
   sanitize "${INPUT_ACCOUNT_ID}" "account_id"
   sanitize "${INPUT_REPO}" "repo"
@@ -23,7 +25,7 @@ function main() {
 
   ACCOUNT_URL="$INPUT_ACCOUNT_ID.dkr.ecr.$INPUT_REGION.amazonaws.com"
 
-  export AWS_DEFAULT_REGION=$INPUT_REGION
+  aws ecr get-login-password --region $INPUT_REGION | docker login --username AWS --password-stdin $ACCOUNT_URL
 
   run_pre_build_script $INPUT_PREBUILD_SCRIPT
   
