@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.3-labs
 FROM docker:19.03.4
 
 RUN apk update \
@@ -6,7 +7,14 @@ RUN apk update \
   && rm -rf /var/cache/apk/* \
   && pip install pyyaml==5.3.1 \
   && pip install -U awscli \
-  && apk --purge -v del py-pip
+  && apk --purge -v del py-pip \
+  && apk add docker-credential-ecr-login -X https://dl-cdn.alpinelinux.org/alpine/edge/community/ --allow-untrusted
+
+RUN mkdir ~/.docker
+
+RUN <<EOF
+echo '{"credsStore": "ecr-login"}' >> ~/.docker/config.json
+EOF
 
 ADD entrypoint.sh /entrypoint.sh
 
