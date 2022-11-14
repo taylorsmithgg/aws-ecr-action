@@ -7,8 +7,8 @@ RUN apk update \
   && rm -rf /var/cache/apk/* \
   && pip install pyyaml==5.3.1 \
   && pip install -U awscli \
-  && apk --purge -v del py-pip \
-  && apk add docker-credential-ecr-login -X https://dl-cdn.alpinelinux.org/alpine/edge/community/ --allow-untrusted
+  && apk --purge -v del py-pip
+#   && apk add docker-credential-ecr-login -X https://dl-cdn.alpinelinux.org/alpine/edge/community/ --allow-untrusted
 
 RUN mkdir /root/.docker
 COPY ./config.json /root/.docker/config.json
