@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.3-labs
-FROM docker:19.03.4
+FROM docker:20.10.22
 
 RUN apk update \
   && apk upgrade \
